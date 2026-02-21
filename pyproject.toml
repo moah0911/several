@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "several"
 version = "0.1.0"
 description = "Universal AI Agent Orchestrator"
-readme = "docs/README.md"
+readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [
@@ -58,6 +58,7 @@ addopts = [
   "--strict-markers",
   "--cov=several",
   "--cov-report=term-missing",
+  "--cov-fail-under=80",
 ]
 markers = [
   "unit: Unit tests",
@@ -65,4 +66,11 @@ markers = [
   "e2e: End-to-end tests",
   "security: Security tests",
   "slow: Slow tests",
+]
+
+[tool.coverage.run]
+omit = [
+  "src/several/cli.py",
+  "src/several/tui/*",
+  "src/several/__main__.py",
 ]

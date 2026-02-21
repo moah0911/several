@@ -33,6 +33,7 @@ For docs, keep short technical sections with explicit assumptions and acceptance
 Target pyramid and gates:
 - 70% unit, 20% integration, 10% e2e.
 - Minimum coverage gate: 80% (`--cov-fail-under=80`).
+- Coverage gate currently targets core/adapters/storage modules; interactive entry surfaces are omitted in `pyproject.toml`.
 - Use markers: `unit`, `integration`, `e2e`, `security`, `slow`, `flaky`.
 - Include specialized suites: `tests/security/`, `tests/performance/`, `tests/concurrency/`.
 

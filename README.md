@@ -65,6 +65,8 @@ several agents list --installed
 
 ## Reliability Checks Performed
 - Full automated suite run in local `.venv` (`python3 -m pytest -q`), currently passing.
+- Coverage gate is enforced at 80% (`--cov-fail-under=80`) and currently passes.
+- Coverage scope omits interactive entry surfaces (`src/several/cli.py`, `src/several/tui/*`, `src/several/__main__.py`) so the gate targets core logic.
 - Added regression tests for:
   - timeout behavior with no process output,
   - streaming output callbacks,
