@@ -118,6 +118,29 @@ def _execute_task_for_session(
     cwd = Path.cwd()
     cleanup_mode = str(ctx.config.get("storage", {}).get("workspace_cleanup", "on_exit"))
     workspaces: dict[str, WorkspaceInfo] = {}
+
+    def emit_event(event: dict[str, Any]) -> None:
+        event_type = str(event.get("type", "event"))
+        event_agent = event.get("agent")
+        try:
+            store.add_task_event(
+                task_id=task_id,
+                event_type=event_type,
+                payload=event,
+                agent=str(event_agent) if event_agent is not None else None,
+            )
+        except Exception as exc:
+            write_log(
+                ctx.paths.log_file,
+                "warning",
+                "task event persistence failed",
+                task_id=task_id,
+                event_type=event_type,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+        if reporter is not None:
+            reporter(event)
+
     for spec in selected:
         try:
             ws = create_agent_workspace(ctx.paths.data_dir, cwd, session_id, task_id, spec.name)
@@ -140,15 +163,14 @@ def _execute_task_for_session(
             path=str(ws.path),
             managed=ws.managed,
         )
-        if reporter is not None:
-            reporter(
-                {
-                    "type": "workspace",
-                    "agent": spec.name,
-                    "workspace": str(ws.path),
-                    "managed": ws.managed,
-                }
-            )
+        emit_event(
+            {
+                "type": "workspace",
+                "agent": spec.name,
+                "workspace": str(ws.path),
+                "managed": ws.managed,
+            }
+        )
 
     execution = execute_task(
         task_id=task_id,
@@ -157,7 +179,7 @@ def _execute_task_for_session(
         sequential=sequential,
         timeout=timeout,
         workspaces={name: str(info.path) for name, info in workspaces.items()},
-        reporter=reporter,
+        reporter=emit_event,
     )
 
     for result in execution.results:
@@ -601,6 +623,46 @@ def sessions_delete(
         raise typer.BadParameter(f"Session not found: {session_id}")
     write_log(ctx.paths.log_file, "info", "session deleted", session_id=session_id)
     console.print(f"Deleted session: {session_id}")
+
+
+@sessions_app.command("tail")
+def sessions_tail(
+    session_id: str,
+    task: Optional[str] = typer.Option(None, "--task", help="Filter by task ID"),
+    agent: Optional[str] = typer.Option(None, "--agent", help="Filter by agent"),
+    follow: bool = typer.Option(False, "--follow", help="Follow new events"),
+    limit: int = typer.Option(200, "--limit", help="Max events per poll"),
+) -> None:
+    ctx = _ctx()
+    store = StateStore(ctx.paths.db_path)
+    if not store.session_exists(session_id):
+        raise typer.BadParameter(f"Session not found: {session_id}")
+
+    last_id: int | None = None
+    while True:
+        events = store.list_task_events(
+            session_id=session_id,
+            task_id=task,
+            agent=agent,
+            since_id=last_id,
+            limit=limit,
+        )
+        for event in events:
+            last_id = int(event["id"])
+            payload = event["payload"]
+            line = payload.get("line")
+            if isinstance(line, str) and line:
+                typer.echo(
+                    f"{event['created_at']} {event.get('agent') or '-'}[{event['event_type']}] {line}"
+                )
+            else:
+                typer.echo(
+                    f"{event['created_at']} {event.get('agent') or '-'}[{event['event_type']}] "
+                    f"{json.dumps(payload, ensure_ascii=True)}"
+                )
+        if not follow:
+            return
+        time.sleep(1)
 
 
 @config_app.command("get")

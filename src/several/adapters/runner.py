@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+import queue
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 from typing import Callable
@@ -47,42 +49,82 @@ def run_agent_prompt(
             cwd=cwd,
         )
         chunks: list[str] = []
-        while True:
+        out_queue: queue.Queue[str | None] = queue.Queue()
+
+        def pump_stdout() -> None:
             if process.stdout is None:
+                out_queue.put(None)
+                return
+            for line in process.stdout:
+                out_queue.put(line)
+            out_queue.put(None)
+
+        thread = threading.Thread(target=pump_stdout, daemon=True)
+        thread.start()
+
+        deadline = start + timeout
+        timed_out = False
+
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
                 break
-            line = process.stdout.readline()
-            if line:
-                chunks.append(line)
-                if on_output is not None:
-                    on_output(line)
-            else:
+
+            try:
+                item = out_queue.get(timeout=min(0.1, max(remaining, 0.01)))
+            except queue.Empty:
                 if process.poll() is not None:
                     break
-                if (time.monotonic() - start) > timeout:
-                    process.kill()
-                    remaining = process.stdout.read() if process.stdout else ""
-                    if remaining:
-                        chunks.append(remaining)
-                        if on_output is not None:
-                            on_output(remaining)
-                    duration_ms = int((time.monotonic() - start) * 1000)
-                    output = "".join(chunks)
-                    return RunResult(
-                        agent=agent.name,
-                        status="timeout",
-                        exit_code=None,
-                        output=output,
-                        duration_ms=duration_ms,
-                        command=command,
-                        workspace=cwd,
-                        tokens_used=None,
-                        progress_percent=None,
-                        tool_calls=[],
-                    )
-                time.sleep(0.01)
+                continue
 
-        return_code = process.wait(timeout=1)
+            if item is None:
+                break
+
+            chunks.append(item)
+            if on_output is not None:
+                on_output(item)
+
+        if timed_out:
+            process.kill()
+
+        # Drain any queued output produced before shutdown.
+        while True:
+            try:
+                item = out_queue.get_nowait()
+            except queue.Empty:
+                break
+            if item is None:
+                continue
+            chunks.append(item)
+            if on_output is not None:
+                on_output(item)
+
+        if process.poll() is None:
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=1)
+
         duration_ms = int((time.monotonic() - start) * 1000)
+        output = "".join(chunks)
+
+        if timed_out:
+            return RunResult(
+                agent=agent.name,
+                status="timeout",
+                exit_code=None,
+                output=output,
+                duration_ms=duration_ms,
+                command=command,
+                workspace=cwd,
+                tokens_used=None,
+                progress_percent=None,
+                tool_calls=[],
+            )
+
+        return_code = process.returncode
         output = "".join(chunks)
         status = "completed" if return_code == 0 else "failed"
         parsed = parse_output(agent.parser_profile, output)

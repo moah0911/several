@@ -43,8 +43,13 @@ def test_state_store_session_task_export() -> None:
                 exit_code=0,
                 duration_ms=10,
                 output="ok",
+                workspace="/tmp/ws",
+                tokens_used=42,
+                progress_percent=100,
+                tool_calls=["read_file"],
             ),
         )
+        store.add_task_event(task_id, "output", {"line": "hello", "type": "output"}, agent="codex")
         store.close_session(session_id)
 
         sessions = store.list_sessions()
@@ -53,3 +58,11 @@ def test_state_store_session_task_export() -> None:
         export = store.export_session(session_id)
         assert export["session"]["id"] == session_id
         assert export["tasks"][0]["id"] == task_id
+        result = export["tasks"][0]["results"][0]
+        assert result["tokens_used"] == 42
+        assert result["progress_percent"] == 100
+        assert result["tool_calls"] == ["read_file"]
+
+        events = store.list_task_events(session_id=session_id)
+        assert events
+        assert events[0]["payload"]["line"] == "hello"

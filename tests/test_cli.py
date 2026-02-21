@@ -74,6 +74,18 @@ def test_agents_add_list_remove_and_task(tmp_path: Path) -> None:
     assert task_payload["prompt"] == "hello world"
     assert task_payload["results"][0]["status"] == "completed"
 
+    sessions_result = invoke(
+        "-c", str(cfg), "-d", str(data), "sessions", "list", "--format", "json"
+    )
+    assert sessions_result.exit_code == 0
+    session_id = json.loads(sessions_result.stdout)[0]["id"]
+
+    tail_result = invoke(
+        "-c", str(cfg), "-d", str(data), "sessions", "tail", session_id, "--limit", "50"
+    )
+    assert tail_result.exit_code == 0
+    assert "[output]" in tail_result.stdout or "[result]" in tail_result.stdout
+
     logs_result = invoke("-c", str(cfg), "-d", str(data), "logs")
     assert logs_result.exit_code == 0
     assert "task started" in logs_result.stdout

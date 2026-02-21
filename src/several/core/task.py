@@ -39,17 +39,24 @@ def execute_task(
     workspaces: dict[str, str] | None = None,
     reporter: Callable[[dict[str, Any]], None] | None = None,
 ) -> TaskExecution:
+    def safe_report(event: dict[str, Any]) -> None:
+        if reporter is None:
+            return
+        try:
+            reporter(event)
+        except Exception:
+            # Reporter failures must not break task execution.
+            return
+
     workspaces = workspaces or {}
     if sequential:
         results: list[RunResult] = []
         running_prompt = prompt
         for agent in agents:
-            if reporter is not None:
-                reporter({"type": "start", "agent": agent.name, "progress": 1})
+            safe_report({"type": "start", "agent": agent.name, "progress": 1})
 
             def on_output(line: str, agent_name: str = agent.name) -> None:
-                if reporter is not None:
-                    reporter({"type": "output", "agent": agent_name, "line": line.rstrip("\n")})
+                safe_report({"type": "output", "agent": agent_name, "line": line.rstrip("\n")})
 
             result = run_agent_prompt(
                 agent,
@@ -59,16 +66,15 @@ def execute_task(
                 on_output=on_output,
             )
             results.append(result)
-            if reporter is not None:
-                reporter(
-                    {
-                        "type": "result",
-                        "agent": result.agent,
-                        "status": result.status,
-                        "progress": 100,
-                        "duration_ms": result.duration_ms,
-                    }
-                )
+            safe_report(
+                {
+                    "type": "result",
+                    "agent": result.agent,
+                    "status": result.status,
+                    "progress": 100,
+                    "duration_ms": result.duration_ms,
+                }
+            )
             running_prompt = result.output.strip() or running_prompt
         return TaskExecution(
             task_id=task_id,
@@ -80,9 +86,15 @@ def execute_task(
 
     results_parallel: list[RunResult] = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(agents))) as executor:
-        if reporter is not None:
-            for agent in agents:
-                reporter({"type": "start", "agent": agent.name, "progress": 1})
+        for agent in agents:
+            safe_report({"type": "start", "agent": agent.name, "progress": 1})
+
+        def make_output_cb(agent_name: str) -> Callable[[str], None]:
+            def _on_output(line: str) -> None:
+                safe_report({"type": "output", "agent": agent_name, "line": line.rstrip("\n")})
+
+            return _on_output
+
         future_map = {
             executor.submit(
                 run_agent_prompt,
@@ -90,27 +102,22 @@ def execute_task(
                 prompt,
                 timeout,
                 workspaces.get(agent.name),
-                lambda line, agent_name=agent.name: (
-                    reporter({"type": "output", "agent": agent_name, "line": line.rstrip("\n")})
-                    if reporter is not None
-                    else None
-                ),
+                make_output_cb(agent.name),
             ): agent.name
             for agent in agents
         }
         for future in concurrent.futures.as_completed(future_map):
             result = future.result()
             results_parallel.append(result)
-            if reporter is not None:
-                reporter(
-                    {
-                        "type": "result",
-                        "agent": result.agent,
-                        "status": result.status,
-                        "progress": 100,
-                        "duration_ms": result.duration_ms,
-                    }
-                )
+            safe_report(
+                {
+                    "type": "result",
+                    "agent": result.agent,
+                    "status": result.status,
+                    "progress": 100,
+                    "duration_ms": result.duration_ms,
+                }
+            )
 
     results_parallel.sort(key=lambda item: item.agent)
     return TaskExecution(

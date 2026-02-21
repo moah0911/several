@@ -43,6 +43,16 @@ CREATE TABLE IF NOT EXISTS task_results (
     created_at TEXT NOT NULL,
     FOREIGN KEY(task_id) REFERENCES tasks(id)
 );
+
+CREATE TABLE IF NOT EXISTS task_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    agent TEXT,
+    event_type TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(task_id) REFERENCES tasks(id)
+);
 """
 
 
@@ -143,6 +153,60 @@ class StateStore:
                 (task_id, session_id, prompt, now_iso(), mode),
             )
         return task_id
+
+    def add_task_event(
+        self, task_id: str, event_type: str, payload: dict[str, Any], agent: str | None = None
+    ) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO task_events (task_id, agent, event_type, payload_json, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (task_id, agent, event_type, json.dumps(payload), now_iso()),
+            )
+
+    def list_task_events(
+        self,
+        session_id: str,
+        task_id: str | None = None,
+        agent: str | None = None,
+        since_id: int | None = None,
+        limit: int = 200,
+    ) -> list[dict[str, Any]]:
+        query = (
+            "SELECT e.id, e.task_id, e.agent, e.event_type, e.payload_json, e.created_at "
+            "FROM task_events e JOIN tasks t ON t.id = e.task_id WHERE t.session_id = ?"
+        )
+        params: list[Any] = [session_id]
+        if task_id:
+            query += " AND e.task_id = ?"
+            params.append(task_id)
+        if agent:
+            query += " AND e.agent = ?"
+            params.append(agent)
+        if since_id is not None:
+            query += " AND e.id > ?"
+            params.append(since_id)
+        query += " ORDER BY e.id ASC LIMIT ?"
+        params.append(limit)
+
+        with self._connect() as conn:
+            rows = conn.execute(query, tuple(params)).fetchall()
+
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            out.append(
+                {
+                    "id": row["id"],
+                    "task_id": row["task_id"],
+                    "agent": row["agent"],
+                    "event_type": row["event_type"],
+                    "payload": json.loads(row["payload_json"] or "{}"),
+                    "created_at": row["created_at"],
+                }
+            )
+        return out
 
     def add_task_result(self, task_id: str, result: TaskResultRecord) -> None:
         with self._connect() as conn:

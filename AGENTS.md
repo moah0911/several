@@ -45,3 +45,6 @@ Git history is not available in this workspace, so follow explicit conventions:
 Before coding, reconcile with: `technical_design.md`, `command_specification.md`, `security_model.md`, and `testing_strategy.md`. If specs conflict, document the decision in the changed file and keep command behavior aligned with `user_documentation.md`.
 For task execution changes, preserve workspace isolation behavior in `src/several/core/workspace.py` and keep cleanup policy aligned with `storage.workspace_cleanup`.
 Keep CLI and TUI task execution paths consistent by routing both through shared orchestration logic in `src/several/cli.py`.
+When adding execution telemetry, persist both final task results (`task_results`) and stream events (`task_events`) in `src/several/core/db.py`.
+Treat reporter/event-persistence paths as best-effort only: failures there must not terminate agent execution.
+Maintain runner timeout correctness for silent subprocesses (no output/newline) and keep regression tests in `tests/test_runner.py` green.

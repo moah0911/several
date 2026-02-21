@@ -28,6 +28,7 @@ pyproject.toml
 - `several task "<PROMPT>"`: non-interactive CLI mode
 - `several agents ...`: list/add/remove/test adapters
 - `several sessions ...`: list/export/import/delete sessions
+- `several sessions tail <SESSION_ID>`: replay/poll persisted task events (including streamed output lines)
 - `several config ...`: get/set/edit/reset config
 - `several logs ...`: inspect log file output
 
@@ -58,6 +59,16 @@ several agents list --installed
 - Session resume is implemented for `several run -s <session_id>` (restores session agents/layout by default).
 - Adapter output parsing now extracts basic metrics (`tokens_used`, `% progress`, and tool-call hints) per run result.
 - Session/task metadata is persisted in `several.db` under the configured data directory.
+- Streamed task events are persisted in `task_events` and can be inspected via `sessions tail`.
+- Runner timeout handling is robust even when agents produce no newline-delimited output.
+- Reporter/persistence failures are isolated so task execution does not fail due to UI/log DB event handling.
+
+## Reliability Checks Performed
+- Full automated suite run in local `.venv` (`python3 -m pytest -q`), currently passing.
+- Added regression tests for:
+  - timeout behavior with no process output,
+  - streaming output callbacks,
+  - reporter exception isolation during task execution.
 - Task runs now support per-agent git worktree isolation under `data/workspaces/<session>/<task>/<agent>` when executed inside a Git repository.
 - Workspace cleanup follows `storage.workspace_cleanup` (currently `on_exit`/`immediate` clean at command end, `manual` preserves worktrees).
 
