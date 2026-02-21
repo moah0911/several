@@ -18,8 +18,7 @@ def is_git_repository(cwd: Path) -> bool:
         completed = subprocess.run(
             ["git", "rev-parse", "--is-inside-work-tree"],
             cwd=str(cwd),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             check=False,
             text=True,
             timeout=2,
@@ -29,7 +28,13 @@ def is_git_repository(cwd: Path) -> bool:
         return False
 
 
-def create_agent_workspace(root_data_dir: Path, cwd: Path, session_id: str, task_id: str, agent: str) -> WorkspaceInfo:
+def create_agent_workspace(
+    root_data_dir: Path,
+    cwd: Path,
+    session_id: str,
+    task_id: str,
+    agent: str,
+) -> WorkspaceInfo:
     if not is_git_repository(cwd):
         return WorkspaceInfo(agent=agent, path=cwd, managed=False)
 
@@ -41,8 +46,7 @@ def create_agent_workspace(root_data_dir: Path, cwd: Path, session_id: str, task
         ["git", "worktree", "add", "--detach", str(ws_path)],
         cwd=str(cwd),
         check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
     )
     return WorkspaceInfo(agent=agent, path=ws_path, managed=True)
@@ -56,8 +60,7 @@ def cleanup_workspace(cwd: Path, workspace: WorkspaceInfo) -> None:
         ["git", "worktree", "remove", "--force", str(workspace.path)],
         cwd=str(cwd),
         check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
     )
     if workspace.path.exists():
@@ -74,8 +77,7 @@ def cleanup_session_workspaces(cwd: Path, root_data_dir: Path, session_id: str) 
                 ["git", "worktree", "remove", "--force", str(child)],
                 cwd=str(cwd),
                 check=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 text=True,
             )
     shutil.rmtree(base, ignore_errors=True)

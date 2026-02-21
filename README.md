@@ -41,16 +41,16 @@ several agents list --installed
 ```
 
 ## Current Documentation
-- `PRD.md`: requirements, scope, roadmap.
-- `technical_design.md`: architecture, components, concurrency model.
-- `command_specification.md`: complete CLI/TUI command contracts.
-- `filesystem_and_storagedesgin.md`: XDG layout, DB schema, worktree lifecycle.
-- `security_model.md`: threat model, validation, isolation, incident response.
-- `testing_strategy.md`: pyramid, pytest layout, CI matrix, quality gates.
-- `user_documentation.md`: installation, quick start, workflows, troubleshooting.
-- `packaging_and_distribution.md`: PyPI-first packaging and release channels.
-- `hardware_and_resources.md`: system/resource baselines and tuning.
-- `local_architecture.md`: local architecture details and data flow.
+- `docs/PRD.md`: requirements, scope, roadmap.
+- `docs/technical_design.md`: architecture, components, concurrency model.
+- `docs/command_specification.md`: complete CLI/TUI command contracts.
+- `docs/filesystem_and_storagedesgin.md`: XDG layout, DB schema, worktree lifecycle.
+- `docs/security_model.md`: threat model, validation, isolation, incident response.
+- `docs/testing_strategy.md`: pyramid, pytest layout, CI matrix, quality gates.
+- `docs/user_documentation.md`: installation, quick start, workflows, troubleshooting.
+- `docs/packaging_and_distribution.md`: PyPI-first packaging and release channels.
+- `docs/hardware_and_resources.md`: system/resource baselines and tuning.
+- `docs/local_architecture.md`: local architecture details and data flow.
 
 ## Current Implementation Notes
 - CLI, config, session persistence, and task execution are implemented in `src/several/`.
@@ -74,8 +74,8 @@ several agents list --installed
 
 ## Local Development
 ```bash
-pip install -e ".[dev]"
+. .venv/bin/activate
+python3 -m pip install -r requirements-dev.txt
 python3 -m compileall src
-PYTHONPATH=src python3 -m several --help
-PYTHONPATH=src python3 -m pytest -q
+python3 -m pytest -q
 ```

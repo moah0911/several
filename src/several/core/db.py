@@ -108,7 +108,11 @@ class StateStore:
         session_id = f"sess-{uuid.uuid4().hex[:8]}"
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO sessions (id, created_at, status, layout, agents_json) VALUES (?, ?, ?, ?, ?)",
+                (
+                    "INSERT INTO sessions "
+                    "(id, created_at, status, layout, agents_json) "
+                    "VALUES (?, ?, ?, ?, ?)"
+                ),
                 (session_id, now_iso(), status, layout, json.dumps(agents)),
             )
         return session_id
@@ -149,7 +153,11 @@ class StateStore:
         task_id = f"task-{uuid.uuid4().hex[:10]}"
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO tasks (id, session_id, prompt, created_at, mode) VALUES (?, ?, ?, ?, ?)",
+                (
+                    "INSERT INTO tasks "
+                    "(id, session_id, prompt, created_at, mode) "
+                    "VALUES (?, ?, ?, ?, ?)"
+                ),
                 (task_id, session_id, prompt, now_iso(), mode),
             )
         return task_id
@@ -258,7 +266,10 @@ class StateStore:
     def delete_session(self, session_id: str) -> int:
         with self._connect() as conn:
             conn.execute(
-                "DELETE FROM task_results WHERE task_id IN (SELECT id FROM tasks WHERE session_id = ?)",
+                (
+                    "DELETE FROM task_results "
+                    "WHERE task_id IN (SELECT id FROM tasks WHERE session_id = ?)"
+                ),
                 (session_id,),
             )
             conn.execute("DELETE FROM tasks WHERE session_id = ?", (session_id,))
@@ -279,7 +290,10 @@ class StateStore:
                 raise KeyError(f"Session not found: {session_id}")
 
             tasks = conn.execute(
-                "SELECT id, prompt, created_at, mode FROM tasks WHERE session_id = ? ORDER BY created_at ASC",
+                (
+                    "SELECT id, prompt, created_at, mode FROM tasks "
+                    "WHERE session_id = ? ORDER BY created_at ASC"
+                ),
                 (session_id,),
             ).fetchall()
 
@@ -326,7 +340,11 @@ class StateStore:
 
         with self._connect() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO sessions (id, created_at, status, layout, agents_json) VALUES (?, ?, ?, ?, ?)",
+                (
+                    "INSERT OR REPLACE INTO sessions "
+                    "(id, created_at, status, layout, agents_json) "
+                    "VALUES (?, ?, ?, ?, ?)"
+                ),
                 (
                     session_id,
                     session.get("created_at", now_iso()),
@@ -339,7 +357,11 @@ class StateStore:
             for task in tasks:
                 task_id = task.get("id") or f"task-{uuid.uuid4().hex[:10]}"
                 conn.execute(
-                    "INSERT OR REPLACE INTO tasks (id, session_id, prompt, created_at, mode) VALUES (?, ?, ?, ?, ?)",
+                    (
+                        "INSERT OR REPLACE INTO tasks "
+                        "(id, session_id, prompt, created_at, mode) "
+                        "VALUES (?, ?, ?, ?, ?)"
+                    ),
                     (
                         task_id,
                         session_id,

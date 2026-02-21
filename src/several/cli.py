@@ -4,7 +4,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 import click
 import typer
@@ -58,7 +58,7 @@ class AppContext:
     quiet: bool
 
 
-def _split_agents(raw: Optional[str]) -> list[str]:
+def _split_agents(raw: str | None) -> list[str]:
     if not raw:
         return []
     return [item.strip() for item in raw.split(",") if item.strip()]
@@ -236,8 +236,8 @@ def _execute_task_for_session(
 @app.callback(invoke_without_command=True)
 def main_callback(
     ctx: typer.Context,
-    config_dir: Optional[str] = typer.Option(None, "--config", "-c", help="Config directory"),
-    data_dir: Optional[str] = typer.Option(None, "--data-dir", "-d", help="Data directory"),
+    config_dir: str | None = typer.Option(None, "--config", "-c", help="Config directory"),
+    data_dir: str | None = typer.Option(None, "--data-dir", "-d", help="Data directory"),
     verbose: int = typer.Option(0, "--verbose", "-v", count=True, help="Verbose output"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress non-error output"),
     version: bool = typer.Option(False, "--version", "-V", help="Show version and exit"),
@@ -257,9 +257,9 @@ def main_callback(
 
 @app.command("run")
 def run_command(
-    agents: Optional[str] = typer.Option(None, "--agents", "-a", help="Comma-separated agents"),
-    session: Optional[str] = typer.Option(None, "--session", "-s", help="Resume session"),
-    layout: Optional[str] = typer.Option(None, "--layout", "-l", help="grid|horizontal|vertical"),
+    agents: str | None = typer.Option(None, "--agents", "-a", help="Comma-separated agents"),
+    session: str | None = typer.Option(None, "--session", "-s", help="Resume session"),
+    layout: str | None = typer.Option(None, "--layout", "-l", help="grid|horizontal|vertical"),
     no_auto_detect: bool = typer.Option(
         False, "--no-auto-detect", help="Disable automatic discovery"
     ),
@@ -342,11 +342,11 @@ def run_command(
 @app.command("task")
 def task_command(
     prompt: str = typer.Argument(..., help="Task prompt"),
-    agents: Optional[str] = typer.Option(None, "--agents", "-a", help="Comma-separated agents"),
+    agents: str | None = typer.Option(None, "--agents", "-a", help="Comma-separated agents"),
     parallel: bool = typer.Option(True, "--parallel", "-p", help="Run in parallel"),
     sequential: bool = typer.Option(False, "--sequential", help="Run sequentially"),
     output: str = typer.Option("markdown", "--output", "-o", help="json|markdown|raw"),
-    save: Optional[Path] = typer.Option(None, "--save", help="Save output directory"),
+    save: Path | None = typer.Option(None, "--save", help="Save output directory"),
     timeout: int = typer.Option(300, "--timeout", "-t", help="Timeout per agent (seconds)"),
     compare: bool = typer.Option(False, "--compare", help="Show diff/compare view"),
 ) -> None:
@@ -447,9 +447,9 @@ def agents_add(
     name: str,
     command: str = typer.Option(..., "--command", help="Path to executable"),
     args: str = typer.Option("", "--args", help="Comma-separated default args"),
-    env: Optional[str] = typer.Option(None, "--env", help="KEY=VAL,KEY2=VAL2"),
-    detect_version: Optional[str] = typer.Option(None, "--detect-version", help="Version command"),
-    parser: Optional[str] = typer.Option(None, "--parser", help="Parser profile"),
+    env: str | None = typer.Option(None, "--env", help="KEY=VAL,KEY2=VAL2"),
+    detect_version: str | None = typer.Option(None, "--detect-version", help="Version command"),
+    parser: str | None = typer.Option(None, "--parser", help="Parser profile"),
 ) -> None:
     ctx = _ctx()
     arg_list = [item.strip() for item in args.split(",") if item.strip()]
@@ -562,7 +562,7 @@ def _render_markdown_export(payload: dict[str, Any]) -> str:
 @sessions_app.command("export")
 def sessions_export(
     session_id: str,
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output file path"),
     format: str = typer.Option("markdown", "--format", "-f", help="markdown|json|html"),
 ) -> None:
     ctx = _ctx()
@@ -628,8 +628,8 @@ def sessions_delete(
 @sessions_app.command("tail")
 def sessions_tail(
     session_id: str,
-    task: Optional[str] = typer.Option(None, "--task", help="Filter by task ID"),
-    agent: Optional[str] = typer.Option(None, "--agent", help="Filter by agent"),
+    task: str | None = typer.Option(None, "--task", help="Filter by task ID"),
+    agent: str | None = typer.Option(None, "--agent", help="Filter by agent"),
     follow: bool = typer.Option(False, "--follow", help="Follow new events"),
     limit: int = typer.Option(200, "--limit", help="Max events per poll"),
 ) -> None:
@@ -652,9 +652,8 @@ def sessions_tail(
             payload = event["payload"]
             line = payload.get("line")
             if isinstance(line, str) and line:
-                typer.echo(
-                    f"{event['created_at']} {event.get('agent') or '-'}[{event['event_type']}] {line}"
-                )
+                prefix = f"{event['created_at']} {event.get('agent') or '-'}[{event['event_type']}]"
+                typer.echo(f"{prefix} {line}")
             else:
                 typer.echo(
                     f"{event['created_at']} {event.get('agent') or '-'}[{event['event_type']}] "
@@ -710,9 +709,9 @@ def config_reset(force: bool = typer.Option(False, "--force", help="Skip confirm
 @app.command("logs")
 def logs(
     follow: bool = typer.Option(False, "--follow", help="Follow output"),
-    agent: Optional[str] = typer.Option(None, "--agent", help="Filter by agent name"),
-    since: Optional[str] = typer.Option(None, "--since", help="Show logs since timestamp text"),
-    level: Optional[str] = typer.Option(None, "--level", help="Filter by level"),
+    agent: str | None = typer.Option(None, "--agent", help="Filter by agent name"),
+    since: str | None = typer.Option(None, "--since", help="Show logs since timestamp text"),
+    level: str | None = typer.Option(None, "--level", help="Filter by level"),
 ) -> None:
     ctx = _ctx()
     log_file = ctx.paths.log_file

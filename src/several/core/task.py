@@ -148,7 +148,9 @@ def format_output(payload: TaskExecution, output_format: str, compare: bool) -> 
         for result in payload.results:
             lines.append(f"## {result.agent}")
             lines.append(
-                f"Status: {result.status} | Exit: {result.exit_code} | Duration: {result.duration_ms}ms"
+                "Status: "
+                f"{result.status} | Exit: {result.exit_code} "
+                f"| Duration: {result.duration_ms}ms"
             )
             lines.append(
                 "Metrics: "

@@ -2,16 +2,18 @@
 
 ## Project Structure & Module Organization
 This repo now contains an MVP Python CLI/TUI implementation for `Several`.
-- Specs at root: `PRD.md`, `technical_design.md`, `command_specification.md`, `security_model.md`, `testing_strategy.md`, `user_documentation.md`.
-- Storage/runtime reference: `filesystem_and_storagedesgin.md`, `hardware_and_resources.md`, `packaging_and_distribution.md`.
+- Specs in `docs/`: `docs/PRD.md`, `docs/technical_design.md`, `docs/command_specification.md`, `docs/security_model.md`, `docs/testing_strategy.md`, `docs/user_documentation.md`.
+- Storage/runtime reference in `docs/`: `docs/filesystem_and_storagedesgin.md`, `docs/hardware_and_resources.md`, `docs/packaging_and_distribution.md`.
 - Code layout: `src/several/{cli.py,tui/,core/,adapters/,config/}` and `tests/`.
 
 Keep architecture, command contracts, security, and tests in separate docs; cross-link instead of duplicating.
 
 ## Build, Test, and Development Commands
 Use these commands as implementation is scaffolded:
-- `pip install -e ".[dev]"` install project + dev tools.
-- `PYTHONPATH=src python3 -m compileall src` syntax check without full dependency install.
+- `. .venv/bin/activate` activate local virtual environment.
+- `python3 -m pip install -r requirements-dev.txt` install runtime + dev tools.
+- `python3 -m compileall src` syntax check.
+- `python3 -m ruff check src tests` lint check.
 - `pytest -m unit --cov=several --cov-report=term-missing` run unit tests.
 - `pytest -m integration -v` run integration tests.
 - `pytest -m e2e -v --timeout=300` run end-to-end tests.

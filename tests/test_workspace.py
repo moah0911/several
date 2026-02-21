@@ -24,7 +24,7 @@ def test_workspace_git_worktree_lifecycle(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
 
-    subprocess.run(["git", "init"], cwd=repo, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
     subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True)
     subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo, check=True)
     (repo / "README.md").write_text("hello\n", encoding="utf-8")
