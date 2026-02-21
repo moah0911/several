@@ -8,6 +8,3 @@ htmlcov/
 .ruff_cache/
 .venv/
 venv/
-*.md
-!README.md
-!AGENTS.md
