@@ -23,3 +23,18 @@ def test_execute_task_sequential() -> None:
     result = execute_task("task-2", "prompt", agents, sequential=True, timeout=5)
     assert result.mode == "sequential"
     assert len(result.results) == 2
+
+
+def test_execute_task_reports_output_events() -> None:
+    agents = [AgentSpec(name="evt", command=["python3", "-c", "print('line-a')\nprint('line-b')"])]
+    events: list[dict[str, object]] = []
+
+    def reporter(event: dict[str, object]) -> None:
+        events.append(event)
+
+    result = execute_task(
+        "task-3", "prompt", agents, sequential=False, timeout=5, reporter=reporter
+    )
+    assert len(result.results) == 1
+    assert any(evt.get("type") == "output" for evt in events)
+    assert any(evt.get("type") == "result" for evt in events)

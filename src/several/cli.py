@@ -169,6 +169,10 @@ def _execute_task_for_session(
                 exit_code=result.exit_code,
                 duration_ms=result.duration_ms,
                 output=result.output,
+                workspace=result.workspace,
+                tokens_used=result.tokens_used,
+                progress_percent=result.progress_percent,
+                tool_calls=result.tool_calls,
             ),
         )
         write_log(

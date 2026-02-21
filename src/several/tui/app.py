@@ -44,6 +44,7 @@ class SeveralApp(App[None]):
         self.task_submitter = task_submitter
         self.agent_widgets: dict[str, Static] = {}
         self.agent_progress: dict[str, ProgressBar] = {}
+        self.output_lines: list[str] = []
 
     class TaskDone(Message):
         def __init__(self, output: str) -> None:
@@ -98,6 +99,7 @@ class SeveralApp(App[None]):
 
         output_widget = self.query_one("#task-output", Static)
         output_widget.update("Running task...")
+        self.output_lines = []
 
         if self.task_submitter is None:
             output_widget.update("No task submitter configured.")
@@ -112,6 +114,7 @@ class SeveralApp(App[None]):
     def on_several_app_task_done(self, message: TaskDone) -> None:
         output_widget = self.query_one("#task-output", Static)
         output_widget.update(message.output[:4000])
+        self.output_lines = message.output.splitlines()[-200:]
         for agent, widget in self.agent_widgets.items():
             widget.update(f"{agent}: ready")
 
@@ -130,6 +133,12 @@ class SeveralApp(App[None]):
             status_widget.update(f"{agent}: running...")
         elif event.get("type") == "result" and status_widget is not None:
             status_widget.update(f"{agent}: {event.get('status', 'completed')}")
+        elif event.get("type") == "output":
+            line = str(event.get("line", ""))
+            if line:
+                self.output_lines.append(f"[{agent}] {line}")
+                self.output_lines = self.output_lines[-200:]
+                self.query_one("#task-output", Static).update("\n".join(self.output_lines[-40:]))
 
         if progress_widget is not None and isinstance(event.get("progress"), int):
             progress_widget.update(progress=int(event["progress"]), total=100)

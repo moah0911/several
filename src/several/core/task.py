@@ -46,8 +46,17 @@ def execute_task(
         for agent in agents:
             if reporter is not None:
                 reporter({"type": "start", "agent": agent.name, "progress": 1})
+
+            def on_output(line: str, agent_name: str = agent.name) -> None:
+                if reporter is not None:
+                    reporter({"type": "output", "agent": agent_name, "line": line.rstrip("\n")})
+
             result = run_agent_prompt(
-                agent, running_prompt, timeout, cwd=workspaces.get(agent.name)
+                agent,
+                running_prompt,
+                timeout,
+                cwd=workspaces.get(agent.name),
+                on_output=on_output,
             )
             results.append(result)
             if reporter is not None:
@@ -81,6 +90,11 @@ def execute_task(
                 prompt,
                 timeout,
                 workspaces.get(agent.name),
+                lambda line, agent_name=agent.name: (
+                    reporter({"type": "output", "agent": agent_name, "line": line.rstrip("\n")})
+                    if reporter is not None
+                    else None
+                ),
             ): agent.name
             for agent in agents
         }

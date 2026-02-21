@@ -36,6 +36,10 @@ CREATE TABLE IF NOT EXISTS task_results (
     exit_code INTEGER,
     duration_ms INTEGER NOT NULL,
     output TEXT NOT NULL,
+    workspace TEXT,
+    tokens_used INTEGER,
+    progress_percent INTEGER,
+    tool_calls_json TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY(task_id) REFERENCES tasks(id)
 );
@@ -49,6 +53,10 @@ class TaskResultRecord:
     exit_code: int | None
     duration_ms: int
     output: str
+    workspace: str | None = None
+    tokens_used: int | None = None
+    progress_percent: int | None = None
+    tool_calls: list[str] | None = None
 
 
 def now_iso() -> str:
@@ -69,6 +77,20 @@ class StateStore:
     def _init_db(self) -> None:
         with self._connect() as conn:
             conn.executescript(SCHEMA)
+            self._ensure_task_result_columns(conn)
+
+    def _ensure_task_result_columns(self, conn: sqlite3.Connection) -> None:
+        required = {
+            "workspace": "TEXT",
+            "tokens_used": "INTEGER",
+            "progress_percent": "INTEGER",
+            "tool_calls_json": "TEXT",
+        }
+        existing_rows = conn.execute("PRAGMA table_info(task_results)").fetchall()
+        existing = {row["name"] for row in existing_rows}
+        for column, ctype in required.items():
+            if column not in existing:
+                conn.execute(f"ALTER TABLE task_results ADD COLUMN {column} {ctype}")
 
     def create_session(
         self, agents: list[str], layout: str = "grid", status: str = "active"
@@ -126,8 +148,10 @@ class StateStore:
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO task_results (id, task_id, agent, status, exit_code, duration_ms, output, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO task_results
+                (id, task_id, agent, status, exit_code, duration_ms, output, workspace,
+                 tokens_used, progress_percent, tool_calls_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     f"res-{uuid.uuid4().hex[:10]}",
@@ -137,6 +161,10 @@ class StateStore:
                     result.exit_code,
                     result.duration_ms,
                     result.output,
+                    result.workspace,
+                    result.tokens_used,
+                    result.progress_percent,
+                    json.dumps(result.tool_calls or []),
                     now_iso(),
                 ),
             )
@@ -192,14 +220,17 @@ class StateStore:
             ).fetchall()
 
             result_rows = conn.execute(
-                "SELECT task_id, agent, status, exit_code, duration_ms, output, created_at FROM task_results "
+                "SELECT task_id, agent, status, exit_code, duration_ms, output, workspace, "
+                "tokens_used, progress_percent, tool_calls_json, created_at FROM task_results "
                 "WHERE task_id IN (SELECT id FROM tasks WHERE session_id = ?)",
                 (session_id,),
             ).fetchall()
 
         results_by_task: dict[str, list[dict[str, Any]]] = {}
         for row in result_rows:
-            results_by_task.setdefault(row["task_id"], []).append(dict(row))
+            payload = dict(row)
+            payload["tool_calls"] = json.loads(payload.pop("tool_calls_json") or "[]")
+            results_by_task.setdefault(row["task_id"], []).append(payload)
 
         task_payload = []
         for task in tasks:
@@ -257,8 +288,10 @@ class StateStore:
                 for result in task.get("results", []):
                     conn.execute(
                         """
-                        INSERT INTO task_results (id, task_id, agent, status, exit_code, duration_ms, output, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO task_results
+                        (id, task_id, agent, status, exit_code, duration_ms, output, workspace,
+                         tokens_used, progress_percent, tool_calls_json, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             f"res-{uuid.uuid4().hex[:10]}",
@@ -268,6 +301,10 @@ class StateStore:
                             result.get("exit_code"),
                             int(result.get("duration_ms", 0)),
                             result.get("output", ""),
+                            result.get("workspace"),
+                            result.get("tokens_used"),
+                            result.get("progress_percent"),
+                            json.dumps(result.get("tool_calls", [])),
                             result.get("created_at", now_iso()),
                         ),
                     )

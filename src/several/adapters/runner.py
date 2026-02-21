@@ -4,6 +4,7 @@ import os
 import subprocess
 import time
 from dataclasses import dataclass
+from typing import Callable
 
 from several.adapters.parser import parse_output
 from several.adapters.registry import AgentSpec
@@ -24,55 +25,78 @@ class RunResult:
 
 
 def run_agent_prompt(
-    agent: AgentSpec, prompt: str, timeout: int, cwd: str | None = None
+    agent: AgentSpec,
+    prompt: str,
+    timeout: int,
+    cwd: str | None = None,
+    on_output: Callable[[str], None] | None = None,
 ) -> RunResult:
     command = agent.build_command(prompt)
-    env = None
+    env = dict(os.environ)
     if agent.env:
-        env = dict(os.environ)
         env.update(agent.env)
 
     start = time.monotonic()
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(
             command,
-            check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            timeout=timeout,
             env=env,
             cwd=cwd,
         )
+        chunks: list[str] = []
+        while True:
+            if process.stdout is None:
+                break
+            line = process.stdout.readline()
+            if line:
+                chunks.append(line)
+                if on_output is not None:
+                    on_output(line)
+            else:
+                if process.poll() is not None:
+                    break
+                if (time.monotonic() - start) > timeout:
+                    process.kill()
+                    remaining = process.stdout.read() if process.stdout else ""
+                    if remaining:
+                        chunks.append(remaining)
+                        if on_output is not None:
+                            on_output(remaining)
+                    duration_ms = int((time.monotonic() - start) * 1000)
+                    output = "".join(chunks)
+                    return RunResult(
+                        agent=agent.name,
+                        status="timeout",
+                        exit_code=None,
+                        output=output,
+                        duration_ms=duration_ms,
+                        command=command,
+                        workspace=cwd,
+                        tokens_used=None,
+                        progress_percent=None,
+                        tool_calls=[],
+                    )
+                time.sleep(0.01)
+
+        return_code = process.wait(timeout=1)
         duration_ms = int((time.monotonic() - start) * 1000)
-        status = "completed" if completed.returncode == 0 else "failed"
-        parsed = parse_output(agent.parser_profile, completed.stdout)
+        output = "".join(chunks)
+        status = "completed" if return_code == 0 else "failed"
+        parsed = parse_output(agent.parser_profile, output)
         return RunResult(
             agent=agent.name,
             status=status,
-            exit_code=completed.returncode,
-            output=completed.stdout,
+            exit_code=return_code,
+            output=output,
             duration_ms=duration_ms,
             command=command,
             workspace=cwd,
             tokens_used=parsed.tokens_used,
             progress_percent=parsed.progress_percent,
             tool_calls=parsed.tool_calls,
-        )
-    except subprocess.TimeoutExpired as exc:
-        duration_ms = int((time.monotonic() - start) * 1000)
-        partial = exc.stdout or ""
-        return RunResult(
-            agent=agent.name,
-            status="timeout",
-            exit_code=None,
-            output=partial,
-            duration_ms=duration_ms,
-            command=command,
-            workspace=cwd,
-            tokens_used=None,
-            progress_percent=None,
-            tool_calls=[],
         )
     except FileNotFoundError:
         duration_ms = int((time.monotonic() - start) * 1000)
